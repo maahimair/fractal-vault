@@ -1,0 +1,17 @@
+{
+  "name": "fractal-vault-gateway",
+  "version": "1.0.0",
+  "description": "Node.js gateway for Fractal Vault Zero Trust system",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2",
+    "socket.io": "^4.7.5",
+    "http-proxy-middleware": "^3.0.0",
+    "ws": "^8.17.0",
+    "prom-client": "^15.1.3"
+  }
+}
