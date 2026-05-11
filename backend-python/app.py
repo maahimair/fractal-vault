@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 import json
 from datetime import datetime
+from ml_engine import detect_anomaly
 
 app = Flask(__name__)
 
@@ -54,6 +55,11 @@ def evaluate_trust():
     data = request.json or {}
 
     trust_score = calculate_trust_score(data)
+    anomaly_result = detect_anomaly(data)
+
+    if anomaly_result["is_anomaly"]:
+        trust_score -= 15
+        trust_score = max(0, trust_score)
 
     if trust_score >= 70:
         status = "allowed"
@@ -66,6 +72,8 @@ def evaluate_trust():
     return jsonify({
         "trust_score": trust_score,
         "status": status,
+        "is_anomaly": anomaly_result["is_anomaly"],
+        "anomaly_score": anomaly_result["anomaly_score"],
         "factors_checked": [
             "failed_logins",
             "unusual_location",
