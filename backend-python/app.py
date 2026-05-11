@@ -1,6 +1,27 @@
 from flask import Flask, request, jsonify
+import json
+from datetime import datetime
 
 app = Flask(__name__)
+
+def save_log(data, trust_score, status):
+    log_entry = {
+        "timestamp": datetime.now().isoformat(),
+        "input": data,
+        "trust_score": trust_score,
+        "status": status
+    }
+
+    try:
+        with open("logs/trust_logs.json", "r") as file:
+            logs = json.load(file)
+    except:
+        logs = []
+
+    logs.append(log_entry)
+
+    with open("logs/trust_logs.json", "w") as file:
+        json.dump(logs, file, indent=4)
 
 def calculate_trust_score(data):
     score = 100
@@ -40,6 +61,7 @@ def evaluate_trust():
         status = "step-up required"
     else:
         status = "denied"
+    save_log(data, trust_score, status)
 
     return jsonify({
         "trust_score": trust_score,
@@ -51,6 +73,7 @@ def evaluate_trust():
             "high_request_rate"
         ]
     })
+
 
 if __name__ == "__main__":
     app.run(port=5000, debug=True)
