@@ -5,13 +5,7 @@ Fractal Vault is a Zero Trust access evaluation system.
 ## Current Flow
 
 ```text
-Simulator
-   ↓
-Node.js Gateway
-   ↓
-Flask Trust Engine
-   ↓
-Trust Decision
+Simulator : Node.js Gateway :Flask Trust Engine : Trust Decision
 Components
 1. Simulator
 
@@ -22,7 +16,6 @@ simulator/simulate_requests.py
 The simulator creates random login/access behavior and sends it to the Node.js gateway.
 
 It includes:
-
 failed login count
 unusual location flag
 unknown device flag
@@ -75,7 +68,6 @@ Security Flow
 Current Status
 
 Completed:
-
 Flask trust scoring backend
 Node.js gateway
 JWT authentication
@@ -83,7 +75,6 @@ Simulator
 End-to-end request testing
 
 Next planned upgrades:
-
 ML anomaly detection
 request logging
 dashboard
