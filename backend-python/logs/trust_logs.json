@@ -438,5 +438,445 @@
         },
         "trust_score": 0,
         "status": "denied"
+    },
+    {
+        "timestamp": "2026-05-12T14:43:13.839159",
+        "input": {
+            "failed_logins": 1,
+            "unusual_location": true,
+            "unknown_device": true,
+            "high_request_rate": true
+        },
+        "trust_score": 15,
+        "status": "denied"
+    },
+    {
+        "timestamp": "2026-05-12T14:43:14.867208",
+        "input": {
+            "failed_logins": 4,
+            "unusual_location": true,
+            "unknown_device": true,
+            "high_request_rate": true
+        },
+        "trust_score": 0,
+        "status": "denied"
+    },
+    {
+        "timestamp": "2026-05-12T14:43:15.889693",
+        "input": {
+            "failed_logins": 6,
+            "unusual_location": false,
+            "unknown_device": true,
+            "high_request_rate": false
+        },
+        "trust_score": 0,
+        "status": "denied"
+    },
+    {
+        "timestamp": "2026-05-12T14:43:16.909834",
+        "input": {
+            "failed_logins": 3,
+            "unusual_location": false,
+            "unknown_device": true,
+            "high_request_rate": true
+        },
+        "trust_score": 15,
+        "status": "denied"
+    },
+    {
+        "timestamp": "2026-05-12T14:43:17.934897",
+        "input": {
+            "failed_logins": 4,
+            "unusual_location": true,
+            "unknown_device": false,
+            "high_request_rate": true
+        },
+        "trust_score": 10,
+        "status": "denied"
+    },
+    {
+        "timestamp": "2026-05-12T14:43:18.967922",
+        "input": {
+            "failed_logins": 6,
+            "unusual_location": false,
+            "unknown_device": false,
+            "high_request_rate": true
+        },
+        "trust_score": 10,
+        "status": "denied"
+    },
+    {
+        "timestamp": "2026-05-12T14:43:20.008589",
+        "input": {
+            "failed_logins": 4,
+            "unusual_location": false,
+            "unknown_device": true,
+            "high_request_rate": false
+        },
+        "trust_score": 20,
+        "status": "denied"
+    },
+    {
+        "timestamp": "2026-05-12T14:43:21.052453",
+        "input": {
+            "failed_logins": 4,
+            "unusual_location": false,
+            "unknown_device": true,
+            "high_request_rate": false
+        },
+        "trust_score": 20,
+        "status": "denied"
+    },
+    {
+        "timestamp": "2026-05-12T14:43:22.091048",
+        "input": {
+            "failed_logins": 1,
+            "unusual_location": true,
+            "unknown_device": false,
+            "high_request_rate": true
+        },
+        "trust_score": 40,
+        "status": "step-up required"
+    },
+    {
+        "timestamp": "2026-05-12T14:43:23.132280",
+        "input": {
+            "failed_logins": 1,
+            "unusual_location": true,
+            "unknown_device": true,
+            "high_request_rate": false
+        },
+        "trust_score": 30,
+        "status": "denied"
+    },
+    {
+        "timestamp": "2026-05-12T14:51:01.469255",
+        "input": {
+            "failed_logins": 1,
+            "unusual_location": true,
+            "unknown_device": true,
+            "high_request_rate": false
+        },
+        "trust_score": 30,
+        "status": "denied"
+    },
+    {
+        "timestamp": "2026-05-12T14:51:02.503244",
+        "input": {
+            "failed_logins": 4,
+            "unusual_location": false,
+            "unknown_device": false,
+            "high_request_rate": true
+        },
+        "trust_score": 30,
+        "status": "denied"
+    },
+    {
+        "timestamp": "2026-05-12T14:51:03.528455",
+        "input": {
+            "failed_logins": 5,
+            "unusual_location": true,
+            "unknown_device": true,
+            "high_request_rate": false
+        },
+        "trust_score": 0,
+        "status": "denied"
+    },
+    {
+        "timestamp": "2026-05-12T14:51:04.541326",
+        "input": {
+            "failed_logins": 4,
+            "unusual_location": false,
+            "unknown_device": false,
+            "high_request_rate": true
+        },
+        "trust_score": 30,
+        "status": "denied"
+    },
+    {
+        "timestamp": "2026-05-12T14:51:05.578217",
+        "input": {
+            "failed_logins": 5,
+            "unusual_location": false,
+            "unknown_device": false,
+            "high_request_rate": true
+        },
+        "trust_score": 20,
+        "status": "denied"
+    },
+    {
+        "timestamp": "2026-05-12T14:51:06.598627",
+        "input": {
+            "failed_logins": 1,
+            "unusual_location": false,
+            "unknown_device": false,
+            "high_request_rate": true
+        },
+        "trust_score": 75,
+        "status": "allowed"
+    },
+    {
+        "timestamp": "2026-05-12T14:51:07.627980",
+        "input": {
+            "failed_logins": 1,
+            "unusual_location": true,
+            "unknown_device": true,
+            "high_request_rate": true
+        },
+        "trust_score": 15,
+        "status": "denied"
+    },
+    {
+        "timestamp": "2026-05-12T14:51:08.648249",
+        "input": {
+            "failed_logins": 4,
+            "unusual_location": true,
+            "unknown_device": true,
+            "high_request_rate": true
+        },
+        "trust_score": 0,
+        "status": "denied"
+    },
+    {
+        "timestamp": "2026-05-12T14:51:09.663310",
+        "input": {
+            "failed_logins": 5,
+            "unusual_location": true,
+            "unknown_device": true,
+            "high_request_rate": true
+        },
+        "trust_score": 0,
+        "status": "denied"
+    },
+    {
+        "timestamp": "2026-05-12T14:51:10.678440",
+        "input": {
+            "failed_logins": 5,
+            "unusual_location": true,
+            "unknown_device": true,
+            "high_request_rate": true
+        },
+        "trust_score": 0,
+        "status": "denied"
+    },
+    {
+        "timestamp": "2026-05-12T14:56:17.644461",
+        "input": {
+            "failed_logins": 0,
+            "unusual_location": true,
+            "unknown_device": false,
+            "high_request_rate": false
+        },
+        "trust_score": 80,
+        "status": "allowed"
+    },
+    {
+        "timestamp": "2026-05-12T14:56:18.668079",
+        "input": {
+            "failed_logins": 0,
+            "unusual_location": true,
+            "unknown_device": true,
+            "high_request_rate": true
+        },
+        "trust_score": 25,
+        "status": "denied"
+    },
+    {
+        "timestamp": "2026-05-12T14:56:19.684019",
+        "input": {
+            "failed_logins": 3,
+            "unusual_location": false,
+            "unknown_device": true,
+            "high_request_rate": true
+        },
+        "trust_score": 15,
+        "status": "denied"
+    },
+    {
+        "timestamp": "2026-05-12T14:56:20.725955",
+        "input": {
+            "failed_logins": 0,
+            "unusual_location": false,
+            "unknown_device": true,
+            "high_request_rate": false
+        },
+        "trust_score": 60,
+        "status": "step-up required"
+    },
+    {
+        "timestamp": "2026-05-12T14:56:21.763109",
+        "input": {
+            "failed_logins": 2,
+            "unusual_location": false,
+            "unknown_device": true,
+            "high_request_rate": false
+        },
+        "trust_score": 40,
+        "status": "step-up required"
+    },
+    {
+        "timestamp": "2026-05-12T14:56:22.798483",
+        "input": {
+            "failed_logins": 6,
+            "unusual_location": false,
+            "unknown_device": true,
+            "high_request_rate": false
+        },
+        "trust_score": 0,
+        "status": "denied"
+    },
+    {
+        "timestamp": "2026-05-12T14:56:23.834168",
+        "input": {
+            "failed_logins": 2,
+            "unusual_location": true,
+            "unknown_device": true,
+            "high_request_rate": true
+        },
+        "trust_score": 5,
+        "status": "denied"
+    },
+    {
+        "timestamp": "2026-05-12T14:56:24.873157",
+        "input": {
+            "failed_logins": 2,
+            "unusual_location": true,
+            "unknown_device": true,
+            "high_request_rate": true
+        },
+        "trust_score": 5,
+        "status": "denied"
+    },
+    {
+        "timestamp": "2026-05-12T14:56:25.907160",
+        "input": {
+            "failed_logins": 1,
+            "unusual_location": false,
+            "unknown_device": true,
+            "high_request_rate": true
+        },
+        "trust_score": 35,
+        "status": "denied"
+    },
+    {
+        "timestamp": "2026-05-12T14:56:26.937104",
+        "input": {
+            "failed_logins": 3,
+            "unusual_location": false,
+            "unknown_device": false,
+            "high_request_rate": true
+        },
+        "trust_score": 40,
+        "status": "step-up required"
+    },
+    {
+        "timestamp": "2026-05-12T14:57:55.406747",
+        "input": {
+            "failed_logins": 3,
+            "unusual_location": true,
+            "unknown_device": false,
+            "high_request_rate": false
+        },
+        "trust_score": 50,
+        "status": "step-up required"
+    },
+    {
+        "timestamp": "2026-05-12T14:57:56.440371",
+        "input": {
+            "failed_logins": 3,
+            "unusual_location": true,
+            "unknown_device": false,
+            "high_request_rate": true
+        },
+        "trust_score": 20,
+        "status": "denied"
+    },
+    {
+        "timestamp": "2026-05-12T14:57:57.471679",
+        "input": {
+            "failed_logins": 2,
+            "unusual_location": true,
+            "unknown_device": true,
+            "high_request_rate": false
+        },
+        "trust_score": 20,
+        "status": "denied"
+    },
+    {
+        "timestamp": "2026-05-12T14:57:58.486283",
+        "input": {
+            "failed_logins": 6,
+            "unusual_location": true,
+            "unknown_device": true,
+            "high_request_rate": true
+        },
+        "trust_score": 0,
+        "status": "denied"
+    },
+    {
+        "timestamp": "2026-05-12T14:57:59.497941",
+        "input": {
+            "failed_logins": 4,
+            "unusual_location": true,
+            "unknown_device": false,
+            "high_request_rate": true
+        },
+        "trust_score": 10,
+        "status": "denied"
+    },
+    {
+        "timestamp": "2026-05-12T14:58:00.518489",
+        "input": {
+            "failed_logins": 6,
+            "unusual_location": true,
+            "unknown_device": true,
+            "high_request_rate": true
+        },
+        "trust_score": 0,
+        "status": "denied"
+    },
+    {
+        "timestamp": "2026-05-12T14:58:01.580837",
+        "input": {
+            "failed_logins": 3,
+            "unusual_location": true,
+            "unknown_device": true,
+            "high_request_rate": true
+        },
+        "trust_score": 0,
+        "status": "denied"
+    },
+    {
+        "timestamp": "2026-05-12T14:58:02.600922",
+        "input": {
+            "failed_logins": 4,
+            "unusual_location": true,
+            "unknown_device": false,
+            "high_request_rate": true
+        },
+        "trust_score": 10,
+        "status": "denied"
+    },
+    {
+        "timestamp": "2026-05-12T14:58:03.632478",
+        "input": {
+            "failed_logins": 1,
+            "unusual_location": true,
+            "unknown_device": true,
+            "high_request_rate": false
+        },
+        "trust_score": 30,
+        "status": "denied"
+    },
+    {
+        "timestamp": "2026-05-12T14:58:04.663059",
+        "input": {
+            "failed_logins": 6,
+            "unusual_location": true,
+            "unknown_device": true,
+            "high_request_rate": true
+        },
+        "trust_score": 0,
+        "status": "denied"
     }
 ]
