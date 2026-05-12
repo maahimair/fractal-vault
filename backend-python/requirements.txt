@@ -1,10 +1,29 @@
+# backend-python/requirements.txt
+# Fractal Vault — Python Backend Dependencies
+#
+# Install:  pip install -r requirements.txt
+# Python:   3.10+
+
+# ── Core web framework ────────────────────────────────────────
 flask==3.0.3
+flask-cors==4.0.1
+flask-limiter==3.7.0
+
+# ── ML / numerics ─────────────────────────────────────────────
 scikit-learn==1.5.1
-pandas==2.2.2
 numpy==1.26.4
-websockets==12.0
+joblib==1.4.2
+
+# ── Model persistence ─────────────────────────────────────────
+# joblib listed above (ships with sklearn but pinned explicitly)
+
+# ── Testing ───────────────────────────────────────────────────
 pytest==8.3.2
-transformers==4.44.0
-torch==2.4.1
-web3==6.10.0
-flwr[dev]==1.8.0
+
+# ── Removed (unused in current codebase) ──────────────────────
+# pandas        — no DataFrame usage anywhere
+# websockets    — WebSocket handled by Node gateway / socket.io
+# transformers  — not yet integrated
+# torch         — not yet integrated (~2 GB, do not add until needed)
+# web3          — not yet integrated
+# flwr          — not yet integrated
