@@ -49,6 +49,22 @@ def calculate_trust_score(data):
 @app.route("/")
 def home():
     return "Fractal Vault Backend Running"
+@app.route("/logs", methods=["GET"])
+def get_logs():
+    try:
+        with open("logs/trust_logs.json", "r") as file:
+            logs = json.load(file)
+
+        return jsonify({
+            "total_logs": len(logs),
+            "logs": logs
+        })
+
+    except:
+        return jsonify({
+            "total_logs": 0,
+            "logs": []
+        })
 
 @app.route("/evaluate-trust", methods=["POST"])
 def evaluate_trust():
