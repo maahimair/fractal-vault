@@ -44,7 +44,7 @@ from dotenv import load_dotenv
 
 # ─── Config ──────────────────────────────────────────────────────────────────
 
-load_dotenv()
+load_dotenv(r"REDACTED_DEVELOPER_PATH\.env")
 
 TOKEN_URL = os.environ.get("TOKEN_URL", "http://127.0.0.1:3000/token")
 TRUST_URL = os.environ.get("TRUST_URL", "http://127.0.0.1:3000/check-trust")
