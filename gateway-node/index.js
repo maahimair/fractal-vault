@@ -101,9 +101,8 @@ server.listen(3000, () => {
 // gateway-node/index.js
 // Fractal Vault — Node.js Gateway
 // Secured and debugged version
-
+require("dotenv").config({ path: "C:\\Users\\DELL\\Documents\\GitHub\\.env" });
 "use strict";
-
 const express    = require("express");
 const jwt        = require("jsonwebtoken");
 const http       = require("http");

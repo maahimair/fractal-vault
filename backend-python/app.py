@@ -104,7 +104,8 @@ if __name__ == "__main__":
 # backend-python/app.py
 # Fractal Vault — Flask Trust Engine
 # Secured and debugged version
-
+from dotenv import load_dotenv
+load_dotenv(r"C:\Users\DELL\Documents\GitHub\.env")
 import os
 import json
 import logging

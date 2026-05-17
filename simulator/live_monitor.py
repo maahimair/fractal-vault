@@ -28,7 +28,7 @@ from dotenv import load_dotenv
 
 # ─── Config ──────────────────────────────────────────────────────────────────
 
-load_dotenv()
+load_dotenv(r"C:\Users\DELL\Documents\GitHub\.env")
 
 GATEWAY_URL         = os.environ.get("GATEWAY_URL", "http://127.0.0.1:3000")
 RECONNECT_ATTEMPTS  = 10
