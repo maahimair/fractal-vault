@@ -1,174 +1,124 @@
-""" import socketio
+const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
+const cors = require('cors');
+const rateLimit = require('express-rate-limit');
+const jwt = require('jsonwebtoken');
+const path = require('path');
+require('dotenv').config();
 
-sio = socketio.Client()
+const app = express();
+const server = http.createServer(app);
 
-@sio.event
-def connect():
-    print("Connected to Fractal Vault live stream")
+// Initialize Socket.IO with relaxed CORS boundaries for development environments
+const io = new Server(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  }
+});
 
-@sio.on("trust_event")
-def on_trust_event(data):
-    print("LIVE TRUST EVENT:")
-    print(data)
-    print("-" * 40)
+const PORT = process.env.PORT || 3000;
+const JWT_SECRET = process.env.JWT_SECRET || 'fractal_vault_secure_mesh_key_2026';
+const BACKEND_URL = process.env.BACKEND_URL || 'http://127.0.0.1:5000';
 
-sio.connect("http://127.0.0.1:3000")
-sio.wait() """
-# simulator/live_monitor.py
-# Fractal Vault — Live Trust Event Monitor
-# Secured and debugged version
+// App wide middleware configurations
+app.use(cors());
+app.use(express.json());
 
-import os
-import sys
-import json
-from datetime import datetime
+// Serve the clean frontend dashboard files directly out of the public folder
+app.use(express.static(path.join(__dirname, 'public')));
 
-import socketio
-from dotenv import load_dotenv
+// Global API rate limiting scheme to safeguard upstream Flask microservices
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 Minute Evaluation Track Windows
+  max: 100,
+  message: { error: 'Too many execution requests from this security perimeter token. Access throttled.' }
+});
 
-# ─── Config ──────────────────────────────────────────────────────────────────
+app.use('/check-trust', apiLimiter);
 
-load_dotenv(r"C:\Users\DELL\Documents\GitHub\.env")
+// ─── ENDPOINTS ───────────────────────────────────────────────────────────────
 
-GATEWAY_URL         = os.environ.get("GATEWAY_URL", "http://127.0.0.1:3000")
-RECONNECT_ATTEMPTS  = 10
-RECONNECT_DELAY     = 2    # seconds between reconnect attempts
-RECONNECT_DELAY_MAX = 30   # cap backoff at 30 seconds
+// Provision ephemeral JWT tokens to incoming client simulations
+app.get('/token', (req, res) => {
+  const payload = { system: 'fractal-vault-mesh', client: 'simulator-node' };
+  const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '1h' });
+  return res.json({ token });
+});
 
-# ─── Status colour helpers (ANSI, Windows-safe via colorama if available) ────
+// Primary validation gateway intercepting incoming requests
+app.post('/check-trust', async (req, res) => {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Missing or malformed Authorization header profile.' });
+  }
 
-try:
-    from colorama import init, Fore, Style
-    init(autoreset=True)
-    def green(s):  return Fore.GREEN  + s + Style.RESET_ALL
-    def yellow(s): return Fore.YELLOW + s + Style.RESET_ALL
-    def red(s):    return Fore.RED    + s + Style.RESET_ALL
-    def cyan(s):   return Fore.CYAN   + s + Style.RESET_ALL
-    def dim(s):    return Style.DIM   + s + Style.RESET_ALL
-except ImportError:
-    # colorama not installed — plain text fallback
-    def green(s):  return s
-    def yellow(s): return s
-    def red(s):    return s
-    def cyan(s):   return s
-    def dim(s):    return s
+  const token = authHeader.split(' ')[1];
 
-# ─── Counters ─────────────────────────────────────────────────────────────────
+  try {
+    // Cryptographic signature checking
+    jwt.verify(token, JWT_SECRET);
 
-stats = {"total": 0, "allowed": 0, "stepup": 0, "denied": 0, "anomalies": 0}
+    // Forward the dynamic metrics array directly down to the Flask evaluation processor
+    // Uses native AbortSignal timeouts to guarantee gateway resource starvation prevention
+    const response = await fetch(`${BACKEND_URL}/evaluate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body),
+      signal: AbortSignal.timeout(4000) // 4 second hard cap drop rule
+    });
 
-# ─── Socket.IO Client ────────────────────────────────────────────────────────
+    if (!response.ok) {
+      throw new Error(`Upstream Engine structural failure returned status code: ${response.status}`);
+    }
 
-sio = socketio.Client(
-    reconnection=True,
-    reconnection_attempts=RECONNECT_ATTEMPTS,
-    reconnection_delay=RECONNECT_DELAY,
-    reconnection_delay_max=RECONNECT_DELAY_MAX,
-    logger=False,
-    engineio_logger=False
-)
+    const evaluationResult = await response.json();
 
-# ─── Event Handlers ──────────────────────────────────────────────────────────
+    // Map the normalized structural payload array
+    const broadcastData = {
+      timestamp: new Date().toLocaleTimeString(),
+      trust_score: evaluationResult.trust_score,
+      decision: evaluationResult.decision,
+      status: evaluationResult.decision, // Terminal monitor backwards compatibility mapping
+      is_anomaly: evaluationResult.trust_score < 40,
+      metrics: {
+        failed_login_count: req.body.failed_login_count || 0,
+        unusual_location: req.body.unusual_location || false,
+        unknown_device: req.body.unknown_device || false,
+        high_request_rate: req.body.high_request_rate || false
+      }
+    };
 
-@sio.event
-def connect():
-    ts = datetime.now().strftime("%H:%M:%S")
-    print(cyan(f"\n[{ts}] ✔ Connected to Fractal Vault Gateway — {GATEWAY_URL}"))
-    print(dim("─" * 60))
-    print(dim(f"{'TIME':<10} {'SCORE':>5}  {'STATUS':<20} {'ANOMALY':<8} {'LOGINS':>6}"))
-    print(dim("─" * 60))
+    // Broadcast down the pipeline to BOTH listeners simultaneously
+    io.emit('trust_evaluation', broadcastData);
+    io.emit('trust_event', broadcastData);
 
+    return res.json(evaluationResult);
 
-@sio.event
-def disconnect():
-    ts = datetime.now().strftime("%H:%M:%S")
-    print(yellow(f"\n[{ts}] ⚠ Disconnected from gateway. Attempting reconnect..."))
+  } catch (err) {
+    if (err.name === 'TimeoutError') {
+      return res.status(504).json({ error: 'Upstream Trust Engine timeout threshold exceeded.' });
+    }
+    return res.status(403).json({ error: 'Invalid or expired secure infrastructure token verification trace.' });
+  }
+});
 
+// Fallback entry handling routing anomalies cleanly straight into the Dashboard interface
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
-@sio.event
-def connect_error(data):
-    ts = datetime.now().strftime("%H:%M:%S")
-    print(red(f"[{ts}] ✖ Connection error: {data}"))
-    print(red(f"[{ts}] Make sure the Node.js gateway is running at {GATEWAY_URL}"))
+// ─── APPLICATION INITIALIZATION ──────────────────────────────────────────────
 
+io.on('connection', (socket) => {
+  console.log(`[SOCKET] Active trace context listener pipeline secured: ${socket.id}`);
+  
+  socket.on('disconnect', () => {
+    console.log(`[SOCKET] Trace stream connection context dropped: ${socket.id}`);
+  });
+});
 
-@sio.on("trust_event")
-def on_trust_event(data):
-    """
-    Handles every trust evaluation broadcast by the gateway.
-    Prints a formatted one-liner + raw JSON for demo/interview visibility.
-    """
-    ts      = data.get("timestamp", datetime.now().strftime("%H:%M:%S"))
-    score   = data.get("trust_score", "?")
-    status  = str(data.get("status", "UNKNOWN")).upper()
-    anomaly = data.get("is_anomaly", False)
-    logins  = data.get("factors_checked")   # not in payload; kept for future
-
-    # Update counters
-    stats["total"] += 1
-    if status == "ALLOWED":
-        stats["allowed"]  += 1
-    elif status == "DENIED":
-        stats["denied"]   += 1
-    else:
-        stats["stepup"]   += 1
-    if anomaly:
-        stats["anomalies"] += 1
-
-    # Colour-code by status
-    if status == "ALLOWED":
-        status_str = green(f"{status:<20}")
-        score_str  = green(f"{score:>5}")
-    elif status == "DENIED":
-        status_str = red(f"{status:<20}")
-        score_str  = red(f"{score:>5}")
-    else:
-        status_str = yellow(f"{status:<20}")
-        score_str  = yellow(f"{score:>5}")
-
-    anomaly_str = red("YES     ") if anomaly else dim("NO      ")
-
-    print(f"[{ts}] {score_str}  {status_str} {anomaly_str}")
-
-    # Full JSON for demo/interview mode
-    print(dim("  Raw: " + json.dumps(data, separators=(",", ":"))))
-    print(dim("─" * 60))
-
-    # Running totals every 10 events
-    if stats["total"] % 10 == 0:
-        _print_summary()
-
-
-def _print_summary():
-    t = stats["total"] or 1
-    print(cyan(
-        f"\n[SUMMARY] {stats['total']} events | "
-        f"Allowed: {stats['allowed']} ({stats['allowed']/t*100:.0f}%) | "
-        f"Step-Up: {stats['stepup']} ({stats['stepup']/t*100:.0f}%) | "
-        f"Denied: {stats['denied']} ({stats['denied']/t*100:.0f}%) | "
-        f"Anomalies: {stats['anomalies']}"
-    ))
-    print(dim("─" * 60))
-
-# ─── Entry Point ─────────────────────────────────────────────────────────────
-
-if __name__ == "__main__":
-    print(cyan(f"[MONITOR] Fractal Vault Live Monitor"))
-    print(cyan(f"[MONITOR] Connecting to {GATEWAY_URL} ..."))
-
-    try:
-        sio.connect(
-            GATEWAY_URL,
-            transports=["websocket"],
-            wait_timeout=10
-        )
-        sio.wait()
-    except socketio.exceptions.ConnectionError:
-        print(red(f"[FATAL] Could not connect to {GATEWAY_URL}"))
-        print(red("[FATAL] Is the Node.js gateway running? (cd gateway-node && npm start)"))
-        sys.exit(1)
-    except KeyboardInterrupt:
-        print(cyan("\n[MONITOR] Shutting down..."))
-        _print_summary()
-        sio.disconnect()
-        sys.exit(0)
+server.listen(PORT, () => {
+  console.log(`\x1b[36m%s\x1b[0m`, `[GATEWAY] Zero Trust Matrix initialized safely on port: ${PORT}`);
+});
