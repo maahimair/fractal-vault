@@ -1,87 +1,42 @@
-"""import numpy as np
-from sklearn.ensemble import IsolationForest
-
-training_data = np.array([
-    [0, 0, 0, 0],
-    [1, 0, 0, 0],
-    [0, 0, 0, 1],
-    [1, 1, 0, 0],
-    [2, 0, 0, 0],
-    [1, 0, 1, 0],
-    [2, 1, 0, 0],
-    [0, 1, 0, 0],
-    [1, 0, 0, 1],
-    [2, 0, 1, 0]
-])
-
-model = IsolationForest(contamination=0.2, random_state=42)
-model.fit(training_data)
-
-def extract_features(data):
-    return np.array([[
-        data.get("failed_logins", 0),
-        int(data.get("unusual_location", False)),
-        int(data.get("unknown_device", False)),
-        int(data.get("high_request_rate", False))
-    ]])
-
-def detect_anomaly(data):
-    features = extract_features(data)
-
-    prediction = model.predict(features)[0]
-    score = model.decision_function(features)[0]
-
-    is_anomaly = prediction == -1
-    anomaly_score = round(float(abs(score)), 4)
-
-    return {
-        "is_anomaly": bool(is_anomaly),
-        "anomaly_score": anomaly_score
-    }"""
 # backend-python/ml_engine.py
 # Fractal Vault — ML Anomaly Detection Engine
-# Secured and debugged version
+# Fully integrated and corrected version
 
 import os
 import logging
 import threading
-
 import numpy as np
-import joblib
-from sklearn.ensemble import IsolationForest
+
+# Defensive fallback check for joblib/sklearn to avoid bricking Flask on startup
+try:
+    import joblib
+    from sklearn.ensemble import IsolationForest
+    SKLEARN_AVAILABLE = True
+except ImportError:
+    SKLEARN_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
 # ─── Paths ───────────────────────────────────────────────────────────────────
-
-BASE_DIR   = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_PATH = os.path.join(BASE_DIR, "ml_model.pkl")
 
 # ─── Thread Safety ───────────────────────────────────────────────────────────
 # Protects model swap during live retraining.
-# sklearn predict() itself is read-safe for concurrent calls,
-# but replacing the global reference must be atomic.
-
 model_lock = threading.RLock()
+
+# Global reference for our model instance
+_model = None
 
 # ─── Training Data ───────────────────────────────────────────────────────────
 # Columns: [failed_logins, unusual_location, unknown_device, high_request_rate]
-#
-# The original 10-row dataset produced near-random scores.
-# This synthetic dataset (1000 samples) gives the IsolationForest
-# enough density to draw a meaningful decision boundary.
-#
-# Distribution:
-#   60% normal users   → low failed_logins, mostly false flags
-#   25% suspicious     → moderate failed_logins, mixed flags
-#   15% attackers      → high failed_logins, multiple true flags
-
+# High density synthetic dataset (1000 samples) to draw a reliable decision boundary.
 def _generate_training_data() -> np.ndarray:
     rng = np.random.default_rng(42)
 
-    n_normal     = 600
+    n_normal = 600
     n_suspicious = 250
-    n_attack     = 150
+    n_attack = 150
 
     # Normal: 0–1 failed logins, low risk flags
     normal = np.column_stack([
@@ -111,62 +66,57 @@ def _generate_training_data() -> np.ndarray:
     rng.shuffle(data)
     return data
 
+# ─── Model Init & Training ───────────────────────────────────────────────────
 
-TRAINING_DATA = _generate_training_data()
-
-# ─── Model Init ──────────────────────────────────────────────────────────────
-
-def _train_model() -> IsolationForest:
-    """Train a fresh IsolationForest and return it."""
+def _train_model(training_data) -> object:
+    if not SKLEARN_AVAILABLE:
+        return None
     model = IsolationForest(
-        n_estimators=200,       # more trees → more stable scores
-        contamination=0.05,     # expect ~5% anomalies in real traffic
+        n_estimators=200,       # More trees -> stable scores
+        contamination=0.05,     # Expect ~5% anomalies in traffic baseline
         max_features=1.0,
         bootstrap=False,
         random_state=42,
-        n_jobs=-1               # use all CPU cores
+        n_jobs=-1               # Use all CPU cores
     )
-    model.fit(TRAINING_DATA)
-    logger.info("IsolationForest trained on %d samples", len(TRAINING_DATA))
+    model.fit(training_data)
+    logger.info("IsolationForest trained safely on %d samples", len(training_data))
     return model
 
 
-def _load_or_train() -> IsolationForest:
+def init_engine():
     """
-    Load a persisted model from disk if available,
-    otherwise train from scratch and persist it.
-    This avoids retraining on every process restart.
+    Initializes the ML model safely. Loaded explicitly by app.py on startup 
+    to prevent dependency missing conditions from bricking the server process.
     """
-    if os.path.exists(MODEL_PATH):
+    global _model
+    if not SKLEARN_AVAILABLE:
+        logger.error("scikit-learn or joblib not installed! Running ML in fail-secure mode.")
+        return
+
+    with model_lock:
+        if os.path.exists(MODEL_PATH):
+            try:
+                _model = joblib.load(MODEL_PATH)
+                logger.info("Loaded ML model successfully from %s", MODEL_PATH)
+                return
+            except Exception as e:
+                logger.warning("Could not load cached model (%s). Re-training from scratch.", e)
+
+        # Retrain if cache missing or broken
+        data = _generate_training_data()
+        _model = _train_model(data)
         try:
-            loaded = joblib.load(MODEL_PATH)
-            logger.info("Loaded ML model from %s", MODEL_PATH)
-            return loaded
+            joblib.dump(_model, MODEL_PATH)
+            logger.info("Model saved to %s", MODEL_PATH)
         except Exception as e:
-            logger.warning("Could not load model (%s). Retraining.", e)
-
-    model = _train_model()
-    try:
-        joblib.dump(model, MODEL_PATH)
-        logger.info("Model saved to %s", MODEL_PATH)
-    except Exception as e:
-        logger.warning("Could not save model: %s", e)
-    return model
-
-
-# Module-level singleton — loaded once at import time.
-_model: IsolationForest = _load_or_train()
+            logger.warning("Could not save model to disk: %s", e)
 
 # ─── Feature Extraction ──────────────────────────────────────────────────────
 
 def _extract_features(data: dict) -> np.ndarray:
     """
-    Convert validated request dict to a (1, 4) float numpy array.
-
-    All inputs are already validated by app.py before reaching here,
-    but we apply defensive casts anyway to avoid dtype confusion.
-
-    Feature vector: [failed_logins, unusual_location, unknown_device, high_request_rate]
+    Convert request dict to a (1, 4) float numpy array.
     """
     failed = float(min(int(data.get("failed_logins", 0) or 0), 20))
     loc    = float(bool(data.get("unusual_location",  False)))
@@ -176,22 +126,14 @@ def _extract_features(data: dict) -> np.ndarray:
 
 # ─── Score Normalisation ─────────────────────────────────────────────────────
 
-# IsolationForest decision_function returns values roughly in [-0.5, 0.5]:
-#   positive  → normal (far from anomaly boundary)
-#   negative  → anomalous (inside contamination region)
-#
-# We normalise to [0.0, 1.0] where:
-#   0.0 = most normal
-#   1.0 = most anomalous
-#
-# Clipping handles the rare cases where scores fall outside [-0.5, 0.5].
-
-_SCORE_MIN = -0.5
-_SCORE_MAX =  0.5
-
 def _normalise_score(raw_score: float) -> float:
+    """
+    Normalizes IsolationForest score from rough range [-0.5, 0.5] to absolute [0.0, 1.0]
+    0.0 = most normal, 1.0 = highly anomalous
+    """
+    _SCORE_MIN, _SCORE_MAX = -0.5, 0.5
     clipped = max(_SCORE_MIN, min(_SCORE_MAX, raw_score))
-    # Invert: high raw_score (normal) → low anomaly_score
+    # Invert so high risk yields a high value
     normalised = (_SCORE_MAX - clipped) / (_SCORE_MAX - _SCORE_MIN)
     return round(float(normalised), 4)
 
@@ -200,78 +142,55 @@ def _normalise_score(raw_score: float) -> float:
 def detect_anomaly(data: dict) -> dict:
     """
     Run anomaly detection on a validated trust evaluation request.
-
-    Returns:
-        {
-            "is_anomaly":    bool,   # True if model flags as anomalous
-            "anomaly_score": float   # 0.0 (normal) → 1.0 (anomalous)
-        }
-
-    Raises:
-        This function never raises. Errors are caught and returned as
-        is_anomaly=True (fail-secure) so app.py always gets a result.
+    Never crashes; falls back secure (anomaly=True) if error states occur.
     """
+    global _model
+    if not SKLEARN_AVAILABLE or _model is None:
+        return {"is_anomaly": True, "anomaly_score": 1.0}
+
     try:
         with model_lock:
             features   = _extract_features(data)
-            prediction = _model.predict(features)[0]        # 1 = normal, -1 = anomaly
+            prediction = _model.predict(features)[0]  # 1 = normal, -1 = anomaly
             raw_score  = _model.decision_function(features)[0]
 
-        is_anomaly    = bool(prediction == -1)
-        anomaly_score = _normalise_score(raw_score)
-
         return {
-            "is_anomaly":    is_anomaly,
-            "anomaly_score": anomaly_score
+            "is_anomaly": bool(prediction == -1),
+            "anomaly_score": _normalise_score(raw_score)
         }
 
     except Exception as e:
-        logger.error("detect_anomaly failed: %s", e, exc_info=True)
-        # Fail secure: unknown state treated as anomalous
-        return {
-            "is_anomaly":    True,
-            "anomaly_score": 1.0
-        }
+        logger.error("detect_anomaly engine failure: %s", e, exc_info=True)
+        return {"is_anomaly": True, "anomaly_score": 1.0}
 
 
 def retrain(new_samples: np.ndarray) -> bool:
     """
-    Hot-swap the model with one retrained on new_samples.
-    Thread-safe: acquires model_lock before replacing the global.
-
-    Args:
-        new_samples: numpy array of shape (N, 4), same feature order
-                     as TRAINING_DATA.
-
-    Returns:
-        True on success, False on failure.
+    Hot-swap the model with one retrained on historical plus incoming updates.
     """
     global _model
-    if new_samples.shape[1] != 4:
-        logger.error("retrain: expected 4 features, got %d", new_samples.shape[1])
+    if not SKLEARN_AVAILABLE:
+        return False
+        
+    if new_samples.ndim != 2 or new_samples.shape[1] != 4:
+        logger.error("retrain: expected 2D array with 4 features, got shape %s", str(new_samples.shape))
         return False
 
     try:
-        combined = np.vstack([TRAINING_DATA, new_samples])
-        new_model = IsolationForest(
-            n_estimators=200,
-            contamination=0.05,
-            max_features=1.0,
-            bootstrap=False,
-            random_state=42,
-            n_jobs=-1
-        )
-        new_model.fit(combined)
+        training_data = _generate_training_data()
+        combined = np.vstack([training_data, new_samples])
+        new_model = _train_model(combined)
 
-        with model_lock:
-            _model = new_model
-            try:
-                joblib.dump(_model, MODEL_PATH)
-            except Exception as e:
-                logger.warning("retrain: model trained but not saved: %s", e)
-
-        logger.info("Model retrained on %d total samples", len(combined))
-        return True
+        if new_model is not None:
+            with model_lock:
+                _model = new_model
+                try:
+                    joblib.dump(_model, MODEL_PATH)
+                except Exception as e:
+                    logger.warning("retrain: model updated in memory but storage failed: %s", e)
+            logger.info("Model hot-swapped successfully. Total dataset: %d samples", len(combined))
+            return True
+        return False
 
     except Exception as e:
         logger.error("retrain failed: %s", e, exc_info=True)
