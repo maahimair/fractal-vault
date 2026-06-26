@@ -9,13 +9,13 @@ flask==3.0.3
 flask-cors==4.0.1
 flask-limiter==3.7.0
 
+# ── Configuration & Environment ───────────────────────────────
+python-dotenv==1.0.1
+
 # ── ML / numerics ─────────────────────────────────────────────
 scikit-learn==1.5.1
 numpy==1.26.4
 joblib==1.4.2
-
-# ── Model persistence ─────────────────────────────────────────
-# joblib listed above (ships with sklearn but pinned explicitly)
 
 # ── Testing ───────────────────────────────────────────────────
 pytest==8.3.2
