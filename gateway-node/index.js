@@ -1,107 +1,15 @@
-/*const express = require("express");
-const jwt = require("jsonwebtoken");
-const http = require("http");
-const { Server } = require("socket.io");
-
-const app = express();
-app.use(express.json());
-
-const server = http.createServer(app);
-
-const io = new Server(server, {
-  cors: {
-    origin: "*"
-  }
-});
-
-const JWT_SECRET = "fractal-vault-secret-key";
-
-function verifyToken(req, res, next) {
-  const authHeader = req.headers["authorization"];
-
-  if (!authHeader) {
-    return res.status(401).json({
-      error: "No token provided"
-    });
-  }
-
-  const token = authHeader.split(" ")[1];
-
-  if (!token) {
-    return res.status(401).json({
-      error: "Invalid token format"
-    });
-  }
-
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    req.user = decoded;
-    next();
-  } catch (error) {
-    return res.status(403).json({
-      error: "Invalid or expired token"
-    });
-  }
-}
-
-app.get("/", (req, res) => {
-  res.send("Fractal Vault Gateway Running");
-});
-
-app.get("/token", (req, res) => {
-  const token = jwt.sign(
-    {
-      user: "demo-user",
-      role: "tester"
-    },
-    JWT_SECRET,
-    {
-      expiresIn: "1h"
-    }
-  );
-
-  res.json({
-    token
-  });
-});
-
-app.post("/check-trust", verifyToken, async (req, res) => {
-  try {
-    const response = await fetch(
-      "http://127.0.0.1:5000/evaluate-trust",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(req.body)
-      }
-    );
-
-    const data = await response.json();
-
-    io.emit("trust_event", data);
-
-    res.json({
-      gateway: "Node.js Gateway",
-      authenticated_user: req.user,
-      backend_response: data
-    });
-
-  } catch (error) {
-    res.status(500).json({
-      error: "Python backend not reachable"
-    });
-  }
-});
-
-server.listen(3000, () => {
-  console.log("Gateway running on port 3000");
-});*/
 // gateway-node/index.js
 // Fractal Vault — Node.js Gateway
-// Secured and debugged version
-require("dotenv").config({ path: "C:\\Users\\DELL\\Documents\\GitHub\\.env" });
+// Fully integrated and corrected version
+
+const path = require("path");
+
+// Portably load the environment file from project folder or fall back to system absolute path
+const localEnvPath = path.resolve(__dirname, ".env");
+require("dotenv").config({
+    path: require("fs").existsSync(localEnvPath) ? localEnvPath : "C:\\Users\\DELL\\Documents\\GitHub\\.env"
+});
+
 "use strict";
 const express    = require("express");
 const jwt        = require("jsonwebtoken");
@@ -142,11 +50,10 @@ const server = http.createServer(app);
 app.use(express.json({ limit: "16kb" }));
 
 // ─── CORS ────────────────────────────────────────────────────────────────────
-// Strict allowlist — never use origin: "*" on a security gateway.
 
 app.use(cors({
     origin: (origin, callback) => {
-        // Allow requests with no origin (e.g. curl, server-to-server)
+        // Allow requests with no origin (e.g. curl, container-to-container checks)
         if (!origin || ALLOWED_ORIGINS.includes(origin)) {
             callback(null, true);
         } else {
@@ -154,7 +61,7 @@ app.use(cors({
         }
     },
     methods:      ["GET", "POST"],
-    allowedHeaders:["Authorization", "Content-Type"],
+    allowedHeaders: ["Authorization", "Content-Type"],
     credentials:  false
 }));
 
@@ -176,7 +83,6 @@ io.on("connection", (socket) => {
 
 // ─── Rate Limiters ───────────────────────────────────────────────────────────
 
-// /token: max 10 attempts per 15 minutes per IP (brute-force protection)
 const tokenLimiter = rateLimit({
     windowMs:         15 * 60 * 1000,
     max:              10,
@@ -185,7 +91,6 @@ const tokenLimiter = rateLimit({
     message:          { error: "Too many token requests. Try again in 15 minutes." }
 });
 
-// /check-trust: max 30 requests per minute per IP
 const trustLimiter = rateLimit({
     windowMs:         60 * 1000,
     max:              30,
@@ -210,15 +115,12 @@ function verifyToken(req, res, next) {
 
     try {
         const decoded = jwt.verify(token, JWT_SECRET, {
-            algorithms: ["HS256"],   // explicit algorithm — prevents alg:none attack
+            algorithms: ["HS256"],   // Explicit algorithm protects from alg:none exploits
         });
-        // Expose only what downstream handlers need
         req.user = { user: decoded.user, role: decoded.role };
         next();
     } catch (err) {
-        const msg = err.name === "TokenExpiredError"
-            ? "Token has expired"
-            : "Invalid token";
+        const msg = err.name === "TokenExpiredError" ? "Token has expired" : "Invalid token";
         return res.status(403).json({ error: msg });
     }
 }
@@ -238,19 +140,16 @@ function validateTrustPayload(req, res, next) {
 
     const errors = [];
 
-    // Reject unknown fields
     const extra = Object.keys(body).filter(k => !ALLOWED_FIELDS.has(k));
     if (extra.length > 0) {
         errors.push(`Unexpected fields: ${extra.join(", ")}`);
     }
 
-    // failed_logins: integer 0–20
     const fl = body.failed_logins ?? 0;
     if (!Number.isInteger(fl) || fl < 0 || fl > 20) {
         errors.push("failed_logins must be an integer between 0 and 20");
     }
 
-    // Boolean flags
     for (const key of ["unusual_location", "unknown_device", "high_request_rate"]) {
         const val = body[key] ?? false;
         if (typeof val !== "boolean") {
@@ -262,7 +161,6 @@ function validateTrustPayload(req, res, next) {
         return res.status(422).json({ error: "Validation failed", details: errors });
     }
 
-    // Replace req.body with the sanitised subset only
     req.sanitizedBody = {
         failed_logins:     parseInt(fl, 10),
         unusual_location:  Boolean(body.unusual_location  ?? false),
@@ -283,31 +181,19 @@ app.get("/health", (req, res) => {
     res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
-/**
- * POST /token
- * Requires valid credentials in the JSON body.
- * Returns a signed JWT valid for 1 hour.
- *
- * Body: { "username": "...", "password": "..." }
- */
 app.post("/token", tokenLimiter, (req, res) => {
     const { username, password } = req.body || {};
 
-    if (!username || !password ||
-        typeof username !== "string" || typeof password !== "string") {
+    if (!username || !password || typeof username !== "string" || typeof password !== "string") {
         return res.status(400).json({ error: "username and password are required" });
     }
 
-    // Constant-time comparison is not critical here since this is a demo system,
-    // but we do exact-match only on env-configured credentials.
     if (username !== DEMO_USER || password !== DEMO_PASS) {
-        // Same response for wrong user AND wrong password — no enumeration signal.
         return res.status(401).json({ error: "Invalid credentials" });
     }
 
     const token = jwt.sign(
         { user: username, role: "tester" },
-        JWT_SECRET,
         { algorithm: "HS256", expiresIn: "1h" }
     );
 
@@ -315,21 +201,16 @@ app.post("/token", tokenLimiter, (req, res) => {
     res.json({ token, expires_in: 3600 });
 });
 
-/**
- * POST /check-trust
- * Authenticated endpoint. Validates payload, forwards to Flask backend,
- * emits result over WebSocket, returns structured response.
- */
 app.post("/check-trust", trustLimiter, verifyToken, validateTrustPayload, async (req, res) => {
     try {
         const backendRes = await fetch(`${BACKEND_URL}/evaluate-trust`, {
             method:  "POST",
             headers: {
                 "Content-Type":   "application/json",
-                "X-Internal-Key": INTERNAL_KEY          // shared secret — prevents gateway bypass
+                "X-Internal-Key": INTERNAL_KEY
             },
             body:    JSON.stringify(req.sanitizedBody),
-            signal:  AbortSignal.timeout(5000)           // 5-second backend timeout
+            signal:  AbortSignal.timeout(5000) // 5-second circuit-break timeout
         });
 
         if (!backendRes.ok) {
@@ -343,7 +224,6 @@ app.post("/check-trust", trustLimiter, verifyToken, validateTrustPayload, async 
 
         const data = await backendRes.json();
 
-        // Broadcast to all connected WebSocket clients (dashboard)
         io.emit("trust_event", {
             ...data,
             timestamp: new Date().toTimeString().slice(0, 8)
@@ -356,7 +236,7 @@ app.post("/check-trust", trustLimiter, verifyToken, validateTrustPayload, async 
 
         return res.json({
             gateway:          "Fractal Vault Gateway",
-            user:             req.user.user,
+            user:              req.user.user,
             backend_response: data
         });
 
@@ -376,7 +256,6 @@ app.use((req, res) => {
     res.status(404).json({ error: "Not found" });
 });
 
-// eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
     console.error("[ERROR]", err.message);
     if (err.message && err.message.startsWith("CORS")) {
@@ -387,8 +266,9 @@ app.use((err, req, res, next) => {
 
 // ─── Start ───────────────────────────────────────────────────────────────────
 
-server.listen(GATEWAY_PORT, "127.0.0.1", () => {
-    console.log(`[GATEWAY] Fractal Vault Gateway running on http://127.0.0.1:${GATEWAY_PORT}`);
+// Host parameter left out deliberately so that it defaults to 0.0.0.0 listening behavior.
+server.listen(GATEWAY_PORT, () => {
+    console.log(`[GATEWAY] Fractal Vault Gateway running on port ${GATEWAY_PORT}`);
     console.log(`[GATEWAY] Backend target: ${BACKEND_URL}`);
     console.log(`[GATEWAY] Allowed origins: ${ALLOWED_ORIGINS.join(", ")}`);
 });
