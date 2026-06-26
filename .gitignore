@@ -1,0 +1,12 @@
+# Sensitive Environment Settings
+.env
+*.env
+
+# Dependency Folders
+node_modules/
+__pycache__/
+*.pyc
+
+# IDE Configurations
+.vscode/
+.idea/

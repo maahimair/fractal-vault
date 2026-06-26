@@ -2,13 +2,9 @@
 // Fractal Vault — Node.js Gateway
 // Fully integrated and corrected version
 
-const path = require("path");
-
 // Portably load the environment file from project folder or fall back to system absolute path
-const localEnvPath = path.resolve(__dirname, ".env");
-require("dotenv").config({
-    path: require("fs").existsSync(localEnvPath) ? localEnvPath : "C:\\Users\\DELL\\Documents\\GitHub\\.env"
-});
+const path = require("path");
+require("dotenv").config({ path: path.join(__dirname, ".env") });
 
 "use strict";
 const express    = require("express");
@@ -174,7 +170,7 @@ function validateTrustPayload(req, res, next) {
 // ─── Routes ──────────────────────────────────────────────────────────────────
 
 app.get("/", (req, res) => {
-    res.json({ service: "Fractal Vault Gateway", status: "running" });
+    res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
 app.get("/health", (req, res) => {
@@ -192,10 +188,11 @@ app.post("/token", tokenLimiter, (req, res) => {
         return res.status(401).json({ error: "Invalid credentials" });
     }
 
-    const token = jwt.sign(
-        { user: username, role: "tester" },
-        { algorithm: "HS256", expiresIn: "1h" }
-    );
+   const token = jwt.sign(
+    { user: username, role: "tester" },
+    JWT_SECRET, // <-- Make sure this is here, right after the user object!
+    { algorithm: "HS256", expiresIn: "1h" }
+);
 
     console.log(`[AUTH] Token issued for user '${username}'`);
     res.json({ token, expires_in: 3600 });
@@ -252,8 +249,8 @@ app.post("/check-trust", trustLimiter, verifyToken, validateTrustPayload, async 
 
 // ─── 404 & Global Error Handler ──────────────────────────────────────────────
 
-app.use((req, res) => {
-    res.status(404).json({ error: "Not found" });
+app.get("*", (req, res) => {
+    res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
 app.use((err, req, res, next) => {

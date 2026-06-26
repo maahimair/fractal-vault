@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fractal Vault // Zero Trust Matrix</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap');
+    body {
+      font-family: 'JetBrains Mono', monospace;
+      background-color: #06070a;
+    }
+    .crypto-grid {
+      background-size: 20px 20px;
+      background-image: linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+                        linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+    }
+    .custom-scroll::-webkit-scrollbar {
+      width: 4px;
+    }
+    .custom-scroll::-webkit-scrollbar-track {
+      background: #0d0f17;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background: #1e293b;
+      border-radius: 2px;
+    }
+  </style>
+</head>
+<body class="text-slate-300 min-h-screen flex flex-col crypto-grid selection:bg-emerald-500 selection:text-black">
+
+  <header class="border-b border-slate-900 bg-[#0a0c14]/80 backdrop-blur-md sticky top-0 z-50 px-6 py-4 flex justify-between items-center">
+    <div class="flex items-center space-x-3">
+      <div class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></div>
+      <h1 class="text-sm font-bold tracking-widest text-white">FRACTAL_VAULT // ZERO_TRUST_GATEWAY</h1>
+    </div>
+    <div class="flex items-center space-x-6 text-[11px] text-slate-500">
+      <div>GATEWAY: <span class="text-emerald-400 font-bold">PORT_3000</span></div>
+      <div>CORE ENGINE: <span class="text-slate-300">PORT_5000</span></div>
+    </div>
+  </header>
+
+  <main class="flex-1 p-6 grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-7xl w-full mx-auto">
+    <section class="space-y-6 lg:col-span-1">
+      <div class="bg-[#0b0d16] border border-slate-950 p-5 rounded-lg shadow-2xl">
+        <h2 class="text-[10px] font-bold tracking-widest text-slate-400 mb-4 uppercase">// SYSTEM TELEMETRY</h2>
+        <div class="grid grid-cols-3 gap-3">
+          <div class="bg-[#0e111d] p-3 border border-slate-900 rounded">
+            <div class="text-xl font-bold text-emerald-400" id="stat-allowed">0</div>
+            <div class="text-[9px] text-slate-500 font-medium tracking-wide mt-1">ALLOWED</div>
+          </div>
+          <div class="bg-[#0e111d] p-3 border border-slate-900 rounded">
+            <div class="text-xl font-bold text-amber-500" id="stat-stepup">0</div>
+            <div class="text-[9px] text-slate-500 font-medium tracking-wide mt-1">CHALLENGE</div>
+          </div>
+          <div class="bg-[#0e111d] p-3 border border-slate-900 rounded">
+            <div class="text-xl font-bold text-red-500" id="stat-denied">0</div>
+            <div class="text-[9px] text-slate-500 font-medium tracking-wide mt-1">DENIED</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-[#0b0d16] border border-slate-950 p-5 rounded-lg shadow-2xl">
+        <h2 class="text-[10px] font-bold tracking-widest text-slate-400 mb-3 uppercase">// PENALTY RULES METRIC</h2>
+        <div class="space-y-3 text-xs">
+          <div class="flex justify-between items-center p-2 bg-[#0e111d] rounded border border-slate-900">
+            <span class="text-slate-400">Failed Login Attempt</span>
+            <span class="text-red-400 font-bold">-10 pts</span>
+          </div>
+          <div class="flex justify-between items-center p-2 bg-[#0e111d] rounded border border-slate-900">
+            <span class="text-slate-400">Unusual Geolocation</span>
+            <span class="text-red-400 font-bold">-20 pts</span>
+          </div>
+          <div class="flex justify-between items-center p-2 bg-[#0e111d] rounded border border-slate-900">
+            <span class="text-slate-400">Unrecognized Device Identifier</span>
+            <span class="text-red-400 font-bold">-25 pts</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lg:col-span-2 flex flex-col h-[calc(100vh-140px)]">
+      <div class="bg-[#0b0d16] border border-slate-950 rounded-lg shadow-2xl p-5 flex flex-col h-full">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-[10px] font-bold tracking-widest text-slate-400 uppercase">// LIVE ACCESS TRANSACTION AUDIT STREAM</h2>
+          <span class="text-[9px] bg-emerald-950 text-emerald-400 px-2 py-0.5 rounded border border-emerald-800/50 animate-pulse">STREAMING LIVE</span>
+        </div>
+        
+        <div id="log-stream" class="flex-1 overflow-y-auto space-y-3 pr-2 custom-scroll text-xs">
+          <div id="empty-state" class="h-full flex items-center justify-center text-slate-600 text-xs italic">
+            Awaiting evaluations from simulated request pipeline...
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const socket = io();
+    let counters = { allowed: 0, stepup: 0, denied: 0 };
+    const logStream = document.getElementById('log-stream');
+    const emptyState = document.getElementById('empty-state');
+
+    socket.on('trust_event', (data) => {
+      if (emptyState) emptyState.remove();
+
+      const status = str => String(str).toUpperCase();
+      const currentStatus = data.status || data.decision || "UNKNOWN";
+
+      if (status(currentStatus) === 'ALLOWED') counters.allowed++;
+      else if (status(currentStatus) === 'DENIED') counters.denied++;
+      else counters.stepup++;
+
+      document.getElementById('stat-allowed').innerText = counters.allowed;
+      document.getElementById('stat-stepup').innerText = counters.stepup;
+      document.getElementById('stat-denied').innerText = counters.denied;
+
+      let colorClass = 'border-emerald-950 bg-emerald-950/20 text-emerald-400';
+      if (status(currentStatus) === 'DENIED') colorClass = 'border-red-950 bg-red-950/20 text-red-400';
+      else if (status(currentStatus) !== 'ALLOWED') colorClass = 'border-amber-950 bg-amber-950/20 text-amber-400';
+
+      const logCard = document.createElement('div');
+      logCard.className = `p-4 border rounded bg-[#0d0f18] transition-all duration-300 transform translate-y-2 opacity-0 flex flex-col space-y-2 border-l-4`;
+      
+      if (status(currentStatus) === 'ALLOWED') logCard.style.borderLeftColor = '#10b981';
+      else if (status(currentStatus) === 'DENIED') logCard.style.borderLeftColor = '#ef4444';
+      else logCard.style.borderLeftColor = '#f59e0b';
+
+      logCard.innerHTML = `
+        <div class="flex justify-between items-center text-[11px]">
+          <span class="text-slate-500 font-mono">${data.timestamp || new Date().toLocaleTimeString()}</span>
+          <span class="px-2 py-0.5 rounded text-[10px] font-bold border ${colorClass}">${currentStatus}</span>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-2 text-[11px] pt-1">
+          <div><span class="text-slate-600">SCORE:</span> <span class="font-bold text-slate-200">${data.trust_score}/100</span></div>
+          <div><span class="text-slate-600">ANOMALY:</span> <span class="${data.is_anomaly ? 'text-red-400' : 'text-slate-400'}">${data.is_anomaly ? 'YES' : 'NO'}</span></div>
+        </div>
+      `;
+
+      logStream.insertBefore(logCard, logStream.firstChild);
+      setTimeout(() => logCard.classList.remove('translate-y-2', 'opacity-0'), 50);
+
+      if (logStream.children.length > 50) logStream.removeChild(logStream.lastChild);
+    });
+  </script>
+</body>
+</html>
