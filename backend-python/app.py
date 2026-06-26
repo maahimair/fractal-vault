@@ -1,111 +1,7 @@
-"""  from flask import Flask, request, jsonify
-import json
-from datetime import datetime
-from ml_engine import detect_anomaly
-
-app = Flask(__name__)
-
-def save_log(data, trust_score, status):
-    log_entry = {
-        "timestamp": datetime.now().isoformat(),
-        "input": data,
-        "trust_score": trust_score,
-        "status": status
-    }
-
-    try:
-        with open("logs/trust_logs.json", "r") as file:
-            logs = json.load(file)
-    except:
-        logs = []
-
-    logs.append(log_entry)
-
-    with open("logs/trust_logs.json", "w") as file:
-        json.dump(logs, file, indent=4)
-
-def calculate_trust_score(data):
-    score = 100
-
-    failed_logins = data.get("failed_logins", 0)
-    unusual_location = data.get("unusual_location", False)
-    unknown_device = data.get("unknown_device", False)
-    high_request_rate = data.get("high_request_rate", False)
-
-    score -= failed_logins * 10
-
-    if unusual_location:
-        score -= 20
-
-    if unknown_device:
-        score -= 25
-
-    if high_request_rate:
-        score -= 15
-
-    score = max(0, min(score, 100))
-    return score
-
-@app.route("/")
-def home():
-    return "Fractal Vault Backend Running"
-@app.route("/logs", methods=["GET"])
-def get_logs():
-    try:
-        with open("logs/trust_logs.json", "r") as file:
-            logs = json.load(file)
-
-        return jsonify({
-            "total_logs": len(logs),
-            "logs": logs
-        })
-
-    except:
-        return jsonify({
-            "total_logs": 0,
-            "logs": []
-        })
-
-@app.route("/evaluate-trust", methods=["POST"])
-def evaluate_trust():
-    data = request.json or {}
-
-    trust_score = calculate_trust_score(data)
-    anomaly_result = detect_anomaly(data)
-
-    if anomaly_result["is_anomaly"]:
-        trust_score -= 15
-        trust_score = max(0, trust_score)
-
-    if trust_score >= 70:
-        status = "allowed"
-    elif trust_score >= 40:
-        status = "step-up required"
-    else:
-        status = "denied"
-    save_log(data, trust_score, status)
-
-    return jsonify({
-        "trust_score": trust_score,
-        "status": status,
-        "is_anomaly": anomaly_result["is_anomaly"],
-        "anomaly_score": anomaly_result["anomaly_score"],
-        "factors_checked": [
-            "failed_logins",
-            "unusual_location",
-            "unknown_device",
-            "high_request_rate"
-        ]
-    })
-
-
-if __name__ == "__main__":
-    app.run(port=5000, debug=True)"""
 # backend-python/app.py
 # Fractal Vault — Flask Trust Engine
-# Secured and debugged version
-from dotenv import load_dotenv
-load_dotenv(r"C:\Users\DELL\Documents\GitHub\.env")
+# Fully integrated and corrected version
+
 import os
 import json
 import logging
@@ -117,19 +13,33 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from dotenv import load_dotenv
 
-from ml_engine import detect_anomaly
+# Import our machine learning engine controls
+from ml_engine import detect_anomaly, init_engine
+
+# ─── Environment & Directory Setup ───────────────────────────────────────────
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Portably look for .env relative to the folder running this script
+# Fallback to absolute system path if local lookup fails
+LOCAL_ENV = os.path.join(BASE_DIR, ".env")
+if os.path.exists(LOCAL_ENV):
+    load_dotenv(LOCAL_ENV)
+else:
+    load_dotenv(r"C:\Users\DELL\Documents\GitHub\.env")
 
 # ─── App Initialisation ──────────────────────────────────────────────────────
-
 app = Flask(__name__)
 
 # Max request body: 16 KB. Reject anything larger before it hits your code.
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024
 
+# Initialize the ML Engine model into memory safely
+init_engine()
+
 # ─── CORS ────────────────────────────────────────────────────────────────────
 # Only the Node gateway is allowed to call Flask directly.
-# In production replace with your actual gateway origin.
 ALLOWED_ORIGINS = os.environ.get(
     "ALLOWED_ORIGINS", "http://127.0.0.1:3000,http://localhost:3000"
 ).split(",")
@@ -152,8 +62,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# ─── Paths ───────────────────────────────────────────────────────────────────
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# Log file persistence paths
 LOG_FILE = os.path.join(BASE_DIR, "logs", "trust_logs.json")
 os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
 
@@ -257,17 +166,8 @@ def validate_input(data):
 def calculate_trust_score(data):
     """
     Compute a trust score 0–100 from validated risk factors.
-
-    Penalty table:
-      failed_logins       : -10 per login (capped at 20 → max -200, floor at 0)
-      unusual_location    : -20
-      unknown_device      : -25
-      high_request_rate   : -15
-
-    Score is clamped to [0, 100].
     """
     score = 100
-
     score -= data.get("failed_logins", 0) * 10
 
     if data.get("unusual_location", False):
@@ -286,7 +186,6 @@ def calculate_trust_score(data):
 def save_log(data, trust_score, status, is_anomaly, anomaly_score):
     """
     Persist only known, sanitized fields.
-    Never logs raw request bodies or caller-supplied arbitrary keys.
     Uses a threading lock to prevent concurrent write corruption.
     """
     log_entry = {
@@ -335,9 +234,7 @@ def health():
 @limiter.limit("10 per minute")
 def get_logs():
     """
-    Returns stored trust logs.
-    Protected by X-API-Key header.
-    Supports optional ?limit=N query param (max 1000).
+    Returns stored trust logs. Protected by X-API-Key header.
     """
     try:
         limit = int(request.args.get("limit", 100))
@@ -363,22 +260,12 @@ def get_logs():
 def evaluate_trust():
     """
     Main trust evaluation endpoint.
-
-    Flow:
-      1. Enforce Content-Type
-      2. Parse and validate JSON body
-      3. Calculate rule-based trust score
-      4. Run ML anomaly detection
-      5. Apply anomaly penalty if flagged
-      6. Determine access decision
-      7. Persist sanitized log entry
-      8. Return decision (anomaly_score withheld from response)
     """
     # 1. Content-Type guard
     if not request.is_json:
         return jsonify({"error": "Content-Type must be application/json"}), 415
 
-    # 2. Parse
+    # 2. Parse and Validate
     body = request.get_json(silent=True)
     if body is None:
         return jsonify({"error": "Request body is not valid JSON"}), 400
@@ -390,22 +277,16 @@ def evaluate_trust():
     # 3. Rule-based score
     trust_score = calculate_trust_score(data)
 
-    # 4. ML anomaly detection
-    try:
-        anomaly_result = detect_anomaly(data)
-        is_anomaly    = anomaly_result["is_anomaly"]
-        anomaly_score = anomaly_result["anomaly_score"]
-    except Exception as e:
-        logger.error("ML engine error: %s", e, exc_info=True)
-        # Fail secure: treat ML failure as anomalous
-        is_anomaly    = True
-        anomaly_score = 1.0
+    # 4. ML anomaly detection execution
+    anomaly_result = detect_anomaly(data)
+    is_anomaly = anomaly_result["is_anomaly"]
+    anomaly_score = anomaly_result["anomaly_score"]
 
     # 5. Anomaly penalty
     if is_anomaly:
         trust_score = max(0, trust_score - 15)
 
-    # 6. Decision
+    # 6. Access Decision Determinations
     if trust_score >= 70:
         status = "ALLOWED"
     elif trust_score >= 40:
@@ -413,7 +294,7 @@ def evaluate_trust():
     else:
         status = "DENIED"
 
-    # 7. Log (includes anomaly_score internally, not exposed to caller)
+    # 7. Log State Save
     save_log(data, trust_score, status, is_anomaly, anomaly_score)
 
     logger.info(
@@ -421,8 +302,7 @@ def evaluate_trust():
         trust_score, status, is_anomaly, request.remote_addr
     )
 
-    # 8. Response — anomaly_score intentionally omitted to deny
-    #    attackers a signal for boundary probing.
+    # 8. Response (anomaly_score withheld intentionally to prevent boundary probing)
     return jsonify({
         "trust_score":     trust_score,
         "status":          status,
@@ -468,4 +348,6 @@ if __name__ == "__main__":
     debug_mode = os.environ.get("FLASK_DEBUG", "false").lower() == "true"
     if debug_mode:
         logger.warning("Running in DEBUG mode — do NOT use in production")
-    app.run(host="127.0.0.1", port=5000, debug=debug_mode) 
+    
+    # Bound to 0.0.0.0 to properly capture container-to-container gateway traffic
+    app.run(host="0.0.0.0", port=5000, debug=debug_mode)
