@@ -1,83 +1,104 @@
+Here is the raw, clean copy-paste version. There are no conversational intros or outros, so you can copy everything from the box below and paste it directly into your `architecture.md` file.
+
+```markdown
 # Fractal Vault Architecture
 
-Fractal Vault is a Zero Trust access evaluation system.
+Fractal Vault is a Zero Trust access evaluation and microservice-mesh system.
 
-## Current Flow
+---
+
+##  System Architecture Flow
 
 ```text
-Simulator : Node.js Gateway :Flask Trust Engine : Trust Decision
-Components
-1. Simulator
++-------------------+       REST / JSON       +-------------------------+
+|     Simulator     | ----------------------> |     Node.js Gateway     | (Port 3000)
+|  (Python/Client)  |                         |  - JWT Auth Engine      |
++-------------------+                         |  - Rate Limiter & CORS  |
+                                              +-------------------------+
+                                                           |
+                                                           | Internal REST + Circuit Breaker
+                                                           v
++-------------------+       JSON Payload      +-------------------------+
+|  Trust Decision   | <---------------------- |   Flask Trust Engine    | (Port 5000)
+|  (Final Status)   |                         |  - Risk Score Processor |
++-------------------+                         +-------------------------+
 
-Path:
+```
 
-simulator/simulate_requests.py
+---
 
-The simulator creates random login/access behavior and sends it to the Node.js gateway.
+##  System Components
 
-It includes:
-failed login count
-unusual location flag
-unknown device flag
-high request rate flag
-2. Node.js Gateway
+### 1. Simulator
 
-Path:
+* **Path:** `simulator/simulate_requests.py`
+* **Role:** Simulates distinct client device actors producing dynamic behavioral datasets.
+* **Tracked Risk Metadata:**
+* `failed_login_count` (Integer)
+* `unusual_location` (Boolean)
+* `unknown_device` (Boolean)
+* `high_request_rate` (Boolean)
 
-gateway-node/index.js
 
-The gateway is the security entry point.
 
-It handles:
+### 2. Node.js Gateway
 
-JWT token generation
-JWT token verification
-request forwarding to the Flask backend
+* **Path:** `gateway-node/index.js`
+* **Port:** `3000` (Default Entrance)
+* **Role:** The Zero Trust perimeter entry point. Enforces traffic filtering before any upstream hits occur.
+* **Core Middleware:**
+* **`express-rate-limit`**: DDoS mitigative traffic caps.
+* **`cors`**: Strict cross-origin request white-listing.
+* **`jsonwebtoken`**: Cryptographic parsing and token isolation.
 
-Main endpoints:
 
-GET /token
-POST /check-trust
-3. Flask Trust Engine
+* **Upstream Resiliency:** Features built-in native request timeouts (`AbortSignal`) to prevent backend service starvation.
+* **Exposed Endpoints:**
+* `GET /token` -> Generates scoped bearer access keys.
+* `POST /check-trust` -> Inspects claims, verifies signatures, and proxies downstream checks.
 
-Path:
 
-backend-python/app.py
 
-The Flask backend calculates a trust score from 0 to 100.
+### 3. Flask Trust Engine
 
-Risk factors:
+* **Path:** `backend-python/app.py`
+* **Port:** `5000` (Internal Network Only)
+* **Role:** Rule-based algorithmic evaluation engine that parses device risk vectors into an absolute scoring evaluation.
+* **Algorithmic Penalties (Base = 100):**
+* Each Failed Login: -10
+* Unusual Location: -20
+* Unknown Device: -25
+* High Request Rate: -15
 
-failed logins reduce score by 10 each
-unusual location reduces score by 20
-unknown device reduces score by 25
-high request rate reduces score by 15
 
-Decision logic:
+* **Zero Trust Enforcement Tiers:**
+* **70 - 100** -> `ALLOWED`
+* **40 - 69** -> `STEP-UP REQUIRED` (MFA Challenge Trigger)
+* **0 - 39** -> `DENIED` (Immediate Dropped Session)
 
-70–100  → allowed
-40–69   → step-up required
-0–39    → denied
-Security Flow
-1. Client requests JWT token from gateway
-2. Client sends request with Authorization: Bearer token
-3. Gateway verifies token
-4. Gateway forwards request to Flask backend
-5. Flask calculates trust score
-6. Gateway returns final response
-Current Status
 
-Completed:
-Flask trust scoring backend
-Node.js gateway
-JWT authentication
-Simulator
-End-to-end request testing
 
-Next planned upgrades:
-ML anomaly detection
-request logging
-dashboard
-blockchain audit logging
-federated learning simulation
+---
 
+##  Security Lifecycle
+
+1. **Token Provisioning:** Client requests an ephemeral JWT token from the Gateway (`/token`).
+2. **Authenticated Request:** Client attaches token via an `Authorization: Bearer <JWT>` header alongside their device profile payload to `/check-trust`.
+3. **Edge Validation:** Gateway verifies integrity, handles core rate-limits, and unpacks payload.
+4. **Proxy Evaluation:** Gateway safely passes payload to the decoupled Flask Trust Engine.
+5. **Score Generation:** Flask assesses dynamic rule deductions and maps out execution tier.
+6. **Enforced Dispatch:** Gateway consumes evaluation payload and drops, challenges, or lets the transaction pass.
+
+---
+
+##  Upgrade Roadmap
+
+* [ ] **ML Anomaly Detection:** Replace hardcoded point deductions with an Isolation Forest or Autoencoder model.
+* [ ] **Request Logging:** Comprehensive structured JSON logs for auditability.
+* [ ] **Dashboard:** Real-time web panel displaying active trust tiers.
+* [ ] **Blockchain Audit Logging:** Immutable decentralized ledger auditing for access revocations.
+* [ ] **Federated Learning Simulation:** Decentralized risk model training across simulated nodes.
+
+```
+
+```
