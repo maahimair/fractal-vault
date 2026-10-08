@@ -4,6 +4,7 @@
 
 // Portably load the environment file from project folder or fall back to system absolute path
 const path = require("path");
+const crypto = require("crypto");
 require("dotenv").config({ path: path.join(__dirname, ".env") });
 
 "use strict";
@@ -13,6 +14,23 @@ const http       = require("http");
 const { Server } = require("socket.io");
 const rateLimit  = require("express-rate-limit");
 const cors       = require("cors");
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/**
+ * Constant-time string comparison. A plain `!==` returns as soon as it finds a
+ * mismatched byte, which lets an attacker recover the expected value one
+ * character at a time by measuring response latency.
+ */
+function safeCompare(a, b) {
+    const bufA = Buffer.from(String(a), "utf8");
+    const bufB = Buffer.from(String(b), "utf8");
+    // timingSafeEqual requires equal lengths; hash both sides to a fixed
+    // length first so the length difference itself is not leaked either.
+    const hashA = crypto.createHash("sha256").update(bufA).digest();
+    const hashB = crypto.createHash("sha256").update(bufB).digest();
+    return crypto.timingSafeEqual(hashA, hashB);
+}
 
 // ─── Environment & Secrets ───────────────────────────────────────────────────
 
@@ -44,6 +62,37 @@ const server = http.createServer(app);
 
 // Body size cap: reject payloads > 16 KB before they reach any handler.
 app.use(express.json({ limit: "16kb" }));
+
+// Baseline hardening headers.
+//
+// NOTE on 'unsafe-inline': public/index.html ships its own inline <style> and
+// inline <script>, and pulls Tailwind from cdn.tailwindcss.com, so those three
+// sources are allowlisted explicitly below. That still closes the policy down
+// far more than having no CSP at all, which lets an injected <script> reach any
+// origin. See docs/architecture.md -> "Known security debt" for the remaining
+// third-party CDN risk and the plan to vendor the assets.
+app.use((req, res, next) => {
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("X-Frame-Options", "DENY");
+    res.setHeader("Referrer-Policy", "no-referrer");
+    res.setHeader("Cross-Origin-Resource-Policy", "same-origin");
+    res.setHeader(
+        "Content-Security-Policy",
+        [
+            "default-src 'self'",
+            // Tailwind CDN is required by the dashboard stylesheet today.
+            "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com",
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+            "font-src 'self' https://fonts.gstatic.com",
+            "img-src 'self' data:",
+            "connect-src 'self' ws: wss:",
+            "frame-ancestors 'none'",
+            "base-uri 'none'",
+            "object-src 'none'",
+        ].join("; ")
+    );
+    next();
+});
 
 // ─── CORS ────────────────────────────────────────────────────────────────────
 
@@ -184,15 +233,20 @@ app.post("/token", tokenLimiter, (req, res) => {
         return res.status(400).json({ error: "username and password are required" });
     }
 
-    if (username !== DEMO_USER || password !== DEMO_PASS) {
+    // Both comparisons always run, so a wrong username and a wrong password
+    // take the same amount of time to reject.
+    const userOk = safeCompare(username, DEMO_USER);
+    const passOk = safeCompare(password, DEMO_PASS);
+
+    if (!userOk || !passOk) {
         return res.status(401).json({ error: "Invalid credentials" });
     }
 
-   const token = jwt.sign(
-    { user: username, role: "tester" },
-    JWT_SECRET, // <-- Make sure this is here, right after the user object!
-    { algorithm: "HS256", expiresIn: "1h" }
-);
+    const token = jwt.sign(
+        { user: username, role: "tester" },
+        JWT_SECRET,
+        { algorithm: "HS256", expiresIn: "1h" }
+    );
 
     console.log(`[AUTH] Token issued for user '${username}'`);
     res.json({ token, expires_in: 3600 });
@@ -249,7 +303,14 @@ app.post("/check-trust", trustLimiter, verifyToken, validateTrustPayload, async 
 
 // ─── 404 & Global Error Handler ──────────────────────────────────────────────
 
+// SPA fallback. Only extensionless navigation requests get the dashboard;
+// anything that looks like an API or a real asset gets an honest 404 JSON.
+// Returning index.html for every unmatched GET hides typos and probed paths
+// behind a 200, which defeats error-based recon.
 app.get("*", (req, res) => {
+    if (path.extname(req.path)) {
+        return res.status(404).json({ error: "Not found" });
+    }
     res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
