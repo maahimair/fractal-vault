@@ -1,12 +1,53 @@
-# Sensitive Environment Settings
+# ─── Secrets ──────────────────────────────────────────────────────────────────
+# Real secrets must never enter version control. Use .env.example as the template.
 .env
-*.env
+.env.*
+!.env.example
 
-# Dependency Folders
-node_modules/
+# ─── Python ───────────────────────────────────────────────────────────────────
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+*.so
 
-# IDE Configurations
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+.testvenv/
+
+# Packaging / build artefacts
+build/
+dist/
+*.egg-info/
+
+# Trained model artefacts — regenerate with ml_engine.init_engine()
+*.pkl
+*.joblib
+*.onnx
+
+# Test + tooling caches
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# ─── Runtime logs (contain request telemetry, not source) ─────────────────────
+backend-python/logs/
+*.log
+
+# ─── Node.js ──────────────────────────────────────────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-error.log*
+.pnpm-store/
+
+# ─── Local editor / OS ────────────────────────────────────────────────────────
 .vscode/
 .idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini

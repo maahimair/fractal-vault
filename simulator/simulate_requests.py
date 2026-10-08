@@ -10,12 +10,28 @@ import json
 import requests
 
 # ─── Config ──────────────────────────────────────────────────────────────────
+# Credentials come from the environment (see .env.example) so that no password
+# is ever hardcoded in version control. FRACTAL_VAULT_ENV_FILE lets you point
+# at an explicit .env; otherwise the repository root is used.
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+for _candidate in (
+    os.environ.get("FRACTAL_VAULT_ENV_FILE"),
+    os.path.join(_REPO_ROOT, ".env"),
+):
+    if _candidate and os.path.isfile(_candidate):
+        try:
+            from dotenv import load_dotenv
+        except ImportError:
+            print("[WARN] python-dotenv not installed; using the ambient "
+                  "process environment only.")
+            break
+        load_dotenv(_candidate)
+        break
 
-# Force direct local routing bypass (skipping .env dependencies completely)
-TOKEN_URL = "http://127.0.0.1:3000/token"
-TRUST_URL = "http://127.0.0.1:3000/check-trust"
-SIM_USER  = "admin"
-SIM_PASS  = "REMOVED_LEAKED_SECRET"
+TOKEN_URL = os.environ.get("SIM_TOKEN_URL", "http://127.0.0.1:3000/token")
+TRUST_URL = os.environ.get("SIM_TRUST_URL", "http://127.0.0.1:3000/check-trust")
+SIM_USER  = os.environ.get("SIM_USER", "")
+SIM_PASS  = os.environ.get("SIM_PASS", "")
 
 REQUEST_TIMEOUT  = 10   # seconds per HTTP request
 REQUESTS_TOTAL   = 50   # bumped to 50 for realistic dashboard streams
@@ -165,4 +181,11 @@ def run_simulation():
 
 
 if __name__ == "__main__":
+    # Fail closed: without credentials there is nothing to simulate against.
+    missing = [k for k, v in (("SIM_USER", SIM_USER), ("SIM_PASS", SIM_PASS)) if not v]
+    if missing:
+        print(f"[FATAL] Missing required environment variables: {', '.join(missing)}")
+        print("[FATAL] Copy .env.example to .env and fill in the values.")
+        sys.exit(1)
+
     run_simulation()

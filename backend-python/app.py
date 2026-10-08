@@ -4,6 +4,7 @@
 
 import os
 import json
+import hmac
 import logging
 import threading
 from datetime import datetime
@@ -13,21 +14,34 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-from dotenv import load_dotenv
+from werkzeug.exceptions import HTTPException
 
 # Import our machine learning engine controls
 from ml_engine import detect_anomaly, init_engine
 
 # ─── Environment & Directory Setup ───────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+REPO_ROOT = os.path.dirname(BASE_DIR)
 
-# Portably look for .env relative to the folder running this script
-# Fallback to absolute system path if local lookup fails
-LOCAL_ENV = os.path.join(BASE_DIR, ".env")
-if os.path.exists(LOCAL_ENV):
-    load_dotenv(LOCAL_ENV)
-else:
-    load_dotenv(r"REDACTED_DEVELOPER_PATH\.env")
+# Load .env from the most specific location first. Never fall back to an
+# absolute path on someone's machine — a hardcoded developer path leaks
+# usernames and breaks on every other host.
+_ENV_CANDIDATES = (
+    os.environ.get("FRACTAL_VAULT_ENV_FILE"),   # explicit override wins
+    os.path.join(BASE_DIR, ".env"),              # backend-python/.env
+    os.path.join(REPO_ROOT, ".env"),             # repo root .env
+)
+
+for _candidate in _ENV_CANDIDATES:
+    if _candidate and os.path.isfile(_candidate):
+        try:
+            from dotenv import load_dotenv
+        except ImportError:
+            print("[WARN] python-dotenv not installed; relying on the "
+                  "ambient process environment only.")
+            break
+        load_dotenv(_candidate)
+        break
 
 # ─── App Initialisation ──────────────────────────────────────────────────────
 app = Flask(__name__)
@@ -40,9 +54,14 @@ init_engine()
 
 # ─── CORS ────────────────────────────────────────────────────────────────────
 # Only the Node gateway is allowed to call Flask directly.
-ALLOWED_ORIGINS = os.environ.get(
-    "ALLOWED_ORIGINS", "http://127.0.0.1:3000,http://localhost:3000"
-).split(",")
+ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.environ.get(
+        "FLASK_ALLOWED_ORIGINS",
+        "http://127.0.0.1:3000,http://localhost:3000",
+    ).split(",")
+    if origin.strip()
+]
 
 CORS(app, origins=ALLOWED_ORIGINS, methods=["GET", "POST"],
      allow_headers=["Content-Type", "X-Internal-Key"])
@@ -94,7 +113,9 @@ def require_internal_key(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         key = request.headers.get("X-Internal-Key", "")
-        if not INTERNAL_API_KEY or key != INTERNAL_API_KEY:
+        # compare_digest avoids leaking the secret length/content via response
+        # timing. The empty-secret case still fails closed.
+        if not INTERNAL_API_KEY or not hmac.compare_digest(key, INTERNAL_API_KEY):
             logger.warning(
                 "Rejected request — invalid X-Internal-Key from %s",
                 request.remote_addr
@@ -111,7 +132,7 @@ def require_log_api_key(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         key = request.headers.get("X-API-Key", "")
-        if not LOG_API_KEY or key != LOG_API_KEY:
+        if not LOG_API_KEY or not hmac.compare_digest(key, LOG_API_KEY):
             return jsonify({"error": "Unauthorized"}), 401
         return f(*args, **kwargs)
     return decorated
@@ -339,6 +360,12 @@ def rate_limit_exceeded(e):
 
 @app.errorhandler(Exception)
 def handle_exception(e):
+    # An HTTPException already carries its own status code and body. Swallowing
+    # it here would turn every unhandled 4xx (401, 403, ...) into a 500 and
+    # break clients that branch on the status code. Delegate instead.
+    if isinstance(e, HTTPException):
+        return jsonify({"error": e.name}), e.code
+
     logger.error("Unhandled exception: %s", e, exc_info=True)
     return jsonify({"error": "Internal server error"}), 500
 
@@ -349,5 +376,11 @@ if __name__ == "__main__":
     if debug_mode:
         logger.warning("Running in DEBUG mode — do NOT use in production")
     
-    # Bound to 0.0.0.0 to properly capture container-to-container gateway traffic
-    app.run(host="0.0.0.0", port=5000, debug=debug_mode)
+    # Default to loopback. Binding 0.0.0.0 exposes the trust engine to the
+    # entire network, so only opt in when the gateway genuinely lives on a
+    # different host (for example a separate container).
+    bind_host = os.environ.get("FLASK_BIND_HOST", "127.0.0.1")
+    bind_port = int(os.environ.get("FLASK_PORT", "5000"))
+
+    logger.info("Trust engine binding to %s:%d", bind_host, bind_port)
+    app.run(host=bind_host, port=bind_port, debug=debug_mode)
